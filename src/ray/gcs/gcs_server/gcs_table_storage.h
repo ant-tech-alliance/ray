@@ -39,6 +39,7 @@ using rpc::ScheduleData;
 using rpc::StoredConfig;
 using rpc::TaskLeaseData;
 using rpc::TaskReconstructionData;
+using rpc::TaskSpec;
 using rpc::TaskTableData;
 using rpc::WorkerTableData;
 
@@ -163,6 +164,17 @@ class GcsActorTable : public GcsTableWithJobId<ActorID, ActorTableData> {
   explicit GcsActorTable(std::shared_ptr<StoreClient> &store_client)
       : GcsTableWithJobId(store_client) {
     table_name_ = TablePrefix_Name(TablePrefix::ACTOR);
+  }
+
+ private:
+  JobID GetJobIdFromKey(const ActorID &key) override { return key.JobId(); }
+};
+
+class GcsActorTaskSpecTable : public GcsTableWithJobId<ActorID, TaskSpec> {
+ public:
+  explicit GcsActorTaskSpecTable(std::shared_ptr<StoreClient> &store_client)
+      : GcsTableWithJobId(store_client) {
+    table_name_ = TablePrefix_Name(TablePrefix::ACTOR_TASK_SPEC);
   }
 
  private:
@@ -303,6 +315,11 @@ class GcsTableStorage {
     return *actor_table_;
   }
 
+  GcsActorTaskSpecTable &ActorTaskSpecTable() {
+    RAY_CHECK(actor_task_spec_table_ != nullptr);
+    return *actor_task_spec_table_;
+  }
+
   GcsPlacementGroupTable &PlacementGroupTable() {
     RAY_CHECK(placement_group_table_ != nullptr);
     return *placement_group_table_;
@@ -372,6 +389,7 @@ class GcsTableStorage {
   std::shared_ptr<StoreClient> store_client_;
   std::unique_ptr<GcsJobTable> job_table_;
   std::unique_ptr<GcsActorTable> actor_table_;
+  std::unique_ptr<GcsActorTaskSpecTable> actor_task_spec_table_;
   std::unique_ptr<GcsPlacementGroupTable> placement_group_table_;
   std::unique_ptr<GcsTaskTable> task_table_;
   std::unique_ptr<GcsTaskLeaseTable> task_lease_table_;
@@ -396,6 +414,7 @@ class RedisGcsTableStorage : public GcsTableStorage {
     store_client_ = std::make_shared<RedisStoreClient>(redis_client);
     job_table_.reset(new GcsJobTable(store_client_));
     actor_table_.reset(new GcsActorTable(store_client_));
+    actor_task_spec_table_.reset(new GcsActorTaskSpecTable(store_client_));
     placement_group_table_.reset(new GcsPlacementGroupTable(store_client_));
     task_table_.reset(new GcsTaskTable(store_client_));
     task_lease_table_.reset(new GcsTaskLeaseTable(store_client_));
@@ -424,6 +443,7 @@ class InMemoryGcsTableStorage : public GcsTableStorage {
     store_client_ = std::make_shared<InMemoryStoreClient>(main_io_service);
     job_table_.reset(new GcsJobTable(store_client_));
     actor_table_.reset(new GcsActorTable(store_client_));
+    actor_task_spec_table_.reset(new GcsActorTaskSpecTable(store_client_));
     placement_group_table_.reset(new GcsPlacementGroupTable(store_client_));
     task_table_.reset(new GcsTaskTable(store_client_));
     task_lease_table_.reset(new GcsTaskLeaseTable(store_client_));

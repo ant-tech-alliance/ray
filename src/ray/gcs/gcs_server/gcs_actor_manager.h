@@ -41,10 +41,7 @@ class GcsActor {
   ///
   /// \param actor_table_data Data of the actor (see gcs.proto).
   explicit GcsActor(rpc::ActorTableData actor_table_data)
-      : actor_table_data_(std::move(actor_table_data)),
-        task_spec_(actor_table_data_.task_spec()) {
-    actor_table_data_.mutable_task_spec()->Clear();
-  }
+      : actor_table_data_(std::move(actor_table_data)) {}
 
   /// Create a GcsActor by actor_table_data.
   ///
@@ -52,7 +49,7 @@ class GcsActor {
   /// \param task_spec Contains the actor creation task specification.
   explicit GcsActor(rpc::ActorTableData actor_table_data, ray::rpc::TaskSpec task_spec)
       : actor_table_data_(std::move(actor_table_data)),
-        task_spec_(std::move(task_spec)) {}
+        task_spec_(std::unique_ptr<rpc::TaskSpec>(new rpc::TaskSpec(task_spec))) {}
 
   /// Create a GcsActor by TaskSpec.
   ///
@@ -67,7 +64,7 @@ class GcsActor {
 
     auto dummy_object = TaskSpecification(task_spec).ActorDummyObject().Binary();
     actor_table_data_.set_actor_creation_dummy_object_id(dummy_object);
-
+    actor_table_data_.set_language(task_spec.language());
     actor_table_data_.set_is_detached(actor_creation_task_spec.is_detached());
     actor_table_data_.set_name(actor_creation_task_spec.name());
     actor_table_data_.mutable_owner_address()->CopyFrom(task_spec.caller_address());
@@ -77,7 +74,7 @@ class GcsActor {
     actor_table_data_.mutable_address()->set_raylet_id(NodeID::Nil().Binary());
     actor_table_data_.mutable_address()->set_worker_id(WorkerID::Nil().Binary());
 
-    task_spec_ = task_spec;
+    task_spec_ = std::unique_ptr<rpc::TaskSpec>(new rpc::TaskSpec(task_spec));
   }
 
   /// Get the node id on which this actor is created.
@@ -122,7 +119,7 @@ class GcsActor {
   /// The actor meta data which contains the task specification as well as the state of
   /// the gcs actor and so on (see gcs.proto).
   rpc::ActorTableData actor_table_data_;
-  rpc::TaskSpec task_spec_;
+  std::unique_ptr<rpc::TaskSpec> task_spec_;
 };
 
 using RegisterActorCallback = std::function<void(std::shared_ptr<GcsActor>)>;

@@ -767,6 +767,7 @@ void WorkerPool::PopWorker(
       // we can remove it from dedicated_workers_to_tasks.
       state.dedicated_workers_to_tasks.erase(worker->GetProcess());
       state.tasks_to_dedicated_workers.erase(task_spec.TaskId());
+      RAY_CHECK(worker->GetAssignedJobId() == task_spec.JobId());
       callback(worker);
     } else if (!HasPendingWorkerForTask(task_spec.GetLanguage(), task_spec.TaskId())) {
       // We are not pending a registration from a worker for this task,
@@ -800,27 +801,23 @@ void WorkerPool::PopWorker(
       // We can't erase a reverse_iterator.
       auto lit = it.base();
       lit--;
-      worker = std::move(lit->first);
+      auto worker = std::move(lit->first);
       idle_of_all_languages_.erase(lit);
       idle_of_all_languages_map_.erase(worker);
-      break;
+      RAY_CHECK(worker->GetAssignedJobId() == task_spec.JobId());
+      callback(worker);
+      return;
     }
-    if (worker == nullptr) {
-      // There are no more non-actor workers available to execute this task.
-      // Start a new worker process.
-      proc = StartWorkerProcess(task_spec.GetLanguage(), rpc::WorkerType::WORKER,
-                                task_spec.JobId());
-    }
+
+    // There are no more non-actor workers available to execute this task.
+    // Start a new worker process.
+    proc = StartWorkerProcess(task_spec.GetLanguage(), rpc::WorkerType::WORKER,
+                              task_spec.JobId());
   }
 
-  if (worker == nullptr && proc.IsValid()) {
+  if (proc.IsValid()) {
     WarnAboutSize();
   }
-
-  if (worker) {
-    RAY_CHECK(worker->GetAssignedJobId() == task_spec.JobId());
-  }
-  return worker;
 }
 
 void WorkerPool::PrestartWorkers(const TaskSpecification &task_spec,

@@ -944,10 +944,11 @@ void NodeManager::DispatchTasks(
       // Try to get an idle worker to execute this task. If nullptr, there
       // aren't any available workers so we can't assign the task.
       std::shared_ptr<WorkerInterface> worker =
-          worker_pool_.PopWorker(task.GetTaskSpecification());
-      if (worker != nullptr) {
-        AssignTask(worker, task, &post_assign_callbacks);
-      }
+          worker_pool_.PopWorker(task.GetTaskSpecification(),
+                                 [](std::shared_ptr<WorkerInterface> worker) {
+              RAY_CHECK(worker != nullptr) << "Popped a null worker.";
+              AssignTask(worker, task, &post_assign_callbacks);
+          });
     }
   }
   // Call the callbacks from the AssignTask calls above. These need to be called

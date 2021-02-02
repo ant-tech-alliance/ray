@@ -747,11 +747,11 @@ void WorkerPool::TryKillingIdleWorkers() {
   RAY_CHECK(idle_of_all_languages_.size() == idle_of_all_languages_map_.size());
 }
 
-std::shared_ptr<WorkerInterface> WorkerPool::PopWorker(
-    const TaskSpecification &task_spec) {
+void WorkerPool::PopWorker(
+    const TaskSpecification &task_spec,
+    std::function<void(std::shared_ptr<WorkerInterface> worker)> callback) {
   auto &state = GetStateForLanguage(task_spec.GetLanguage());
 
-  std::shared_ptr<WorkerInterface> worker = nullptr;
   Process proc;
   if ((task_spec.IsActorCreationTask() && !task_spec.DynamicWorkerOptions().empty()) ||
       task_spec.OverrideEnvironmentVariables().size() > 0) {
@@ -761,12 +761,13 @@ std::shared_ptr<WorkerInterface> WorkerPool::PopWorker(
     auto it = state.idle_dedicated_workers.find(task_spec.TaskId());
     if (it != state.idle_dedicated_workers.end()) {
       // There is an idle dedicated worker for this task.
-      worker = std::move(it->second);
+      auto worker = std::move(it->second);
       state.idle_dedicated_workers.erase(it);
       // Because we found a worker that can perform this task,
       // we can remove it from dedicated_workers_to_tasks.
       state.dedicated_workers_to_tasks.erase(worker->GetProcess());
       state.tasks_to_dedicated_workers.erase(task_spec.TaskId());
+      callback(worker);
     } else if (!HasPendingWorkerForTask(task_spec.GetLanguage(), task_spec.TaskId())) {
       // We are not pending a registration from a worker for this task,
       // so start a new worker process for this task.
